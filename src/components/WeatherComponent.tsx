@@ -1,12 +1,13 @@
 // library imports
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 
 // type imports
 import type { WeatherArgsInput } from "../types/WeatherArgsInput";
-import type { IgeoLocate } from '../types/IgeoLocation';
+import type { IWeatherForm } from '../types/IWeatherForm';
 
 // hook imports
 import { useWeather } from "../hooks/useWeather";
+import { Button, TextField } from '@mui/material';
 
 // env variable imports
 const apiKey = import.meta.env.VITE_GOOGLE_MAP_API_KEY
@@ -14,41 +15,53 @@ const apiKey = import.meta.env.VITE_GOOGLE_MAP_API_KEY
 // Component
 export const WeatherComponent: React.FC = (): React.ReactNode => {
   // state init
-  const [city, setCity] = useState<string>('')
-  const [province, setProvince] = useState<string>('')
+  const [formState, setFormState] = useState<IWeatherForm>({
+    city: '',
+    province: ''
+  })
+  const [longitude, setLongitude] = useState<number>(0)
+  const [latitude, setLatitude] = useState<number>(0)
+  const [formattedLocation, setFormattedLocation] = useState<string>('')
 
-  // query arguments
+   // controlled state
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    setFormState((prev: IWeatherForm) => ({...prev, [name]: value }) )
+  }
+
+  // geocoding location function - handled by form
+  const getLocation = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?components=locality:${formState.city}|administrative_area:${formState.province}&key=${apiKey}`, {
+      method: 'GET'
+    })
+    const data = await res.json()
+    const dataArray = data.results[0]
+
+    const longitudeData: number = dataArray?.geometry?.location?.lng
+    setLongitude(longitudeData)
+
+    const latitudeData: number = dataArray?.geometry?.location?.lat
+    setLatitude(latitudeData)
+
+    const formattedLocationData: string = dataArray?.formatted_address
+    setFormattedLocation(formattedLocationData);
+
+    setFormState( {
+      city: '',
+      province: ''
+    })
+  }
+
+  // GQL query arguments
   const args: WeatherArgsInput = {
-    longitude: -81.18518989190285,
-    latitude: 42.99548141899535,
+    longitude: longitude,
+    latitude: latitude,
   };
 
   // call query hook
   const { data, error, isLoading } = useWeather("", args);
-
-  // geocoding location function
-  const getLocation = useCallback(async () => {
-    const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${args.latitude},${args.longitude}&key=${apiKey}`, {
-      method: 'GET'
-    })
-    const data = await res.json()
-    const dataArray = data.results[0].address_components
-
-    const city = dataArray.filter((elem: IgeoLocate) => (
-      elem.types.includes('locality') ? elem.long_name : ''
-    )).map((elem: IgeoLocate) => elem.long_name)[0]
-    setCity(city)
-
-    const province = dataArray.filter((elem: IgeoLocate) => (
-      elem.types.includes('administrative_area_level_1') ? elem.long_name : ''
-    )).map((elem: IgeoLocate) => elem.long_name)[0]
-    setProvince(province)
-  }, [args.latitude, args.longitude])
-
-  // call getLocation on render
-  useEffect(() => {
-    getLocation()
-  }, [getLocation])
 
   // JSX
   if (isLoading) return <div>Loading...</div>;
@@ -56,10 +69,33 @@ export const WeatherComponent: React.FC = (): React.ReactNode => {
 
   return (
     <div>
-      <h3>Weather Data</h3>
-      {data!.hourly.temperature_2m}
+      <form onSubmit={getLocation}>
+          <TextField 
+            type="text"
+            name="city" 
+            variant="outlined"
+            label="City"
+            value={formState.city}
+            onChange={handleChange}
+          />
 
-      {city && province && `${city}, ${province}`}
+          <TextField 
+            type="text"
+            name="province" 
+            variant="outlined"
+            label="Province"
+            value={formState.province}
+            onChange={handleChange}
+          />
+
+          <Button variant="outlined">Submit</Button>
+      </form>
+      <h3>Weather Data</h3>
+      {data!.hourly?.temperature_2m}
+
+      <br />
+
+      {formattedLocation}
     </div>
   );
 };
