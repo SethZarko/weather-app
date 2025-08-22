@@ -9,8 +9,13 @@ function App(): React.ReactNode {
     <>
     <QueryClientProvider client={queryClient}>
       <main>
-        <Outlet/>
+        <Outlet />
       </main>
+      <footer>
+        <small>
+          test footer
+        </small>
+      </footer>
     </QueryClientProvider>
   
     </>
